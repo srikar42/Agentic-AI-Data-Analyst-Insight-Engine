@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+matplotlib
+mistralai
+python-dotenv
+langgraph
+mcp>=1.28,<2
+guardrails-ai
+guardrails-ai-valid-length
