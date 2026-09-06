@@ -1,231 +1,63 @@
 import os
+import time
 
 from dotenv import load_dotenv
-from mistralai import Mistral
+from mistralai.client import Mistral
 
 
-# =========================================================
-# LOAD ENVIRONMENT VARIABLES
-# =========================================================
+# Load environment variables
+load_dotenv(".env", override=True)
 
-load_dotenv(
-    ".env",
-    override=True
-)
+# Mistral configuration
+API_KEY = os.getenv("MISTRAL_API_KEY")
+MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
 
+# Create Mistral client
+if not API_KEY:
+    raise ValueError("MISTRAL_API_KEY is not configured.")
 
-# =========================================================
-# MISTRAL CONFIGURATION
-# =========================================================
-
-MISTRAL_API_KEY = os.getenv(
-    "MISTRAL_API_KEY"
-)
-
-MISTRAL_MODEL = os.getenv(
-    "MISTRAL_MODEL",
-    "mistral-small-latest"
-)
+client = Mistral(api_key=API_KEY)
 
 
-# =========================================================
-# CHECK API KEY
-# =========================================================
-
-if not MISTRAL_API_KEY:
-
-    raise ValueError(
-        "MISTRAL_API_KEY not found. "
-        "Please check your .env file."
-    )
-
-
-# =========================================================
-# CREATE MISTRAL CLIENT
-# =========================================================
-
-client = Mistral(
-    api_key=MISTRAL_API_KEY
-)
-
-
-# =========================================================
-# ASK MISTRAL
-# =========================================================
-
-def ask_mistral(
-    prompt,
-    system_prompt=None
-):
+def ask_mistral(prompt: str) -> str:
     """
-    Sends a prompt to Mistral AI.
-
-    This function is used by graph.py.
-
-    Parameters:
-        prompt:
-            The instruction/question sent to Mistral.
-
-        system_prompt:
-            Optional instruction defining the AI's role.
-
-    Returns:
-        Mistral generated text.
+    Send a prompt to Mistral and return the generated response.
+    Includes retry handling for temporary rate-limit errors.
     """
 
-    # -----------------------------------------------------
-    # CREATE MESSAGE LIST
-    # -----------------------------------------------------
+    max_retries = 3
 
-    messages = []
-
-
-    # -----------------------------------------------------
-    # ADD SYSTEM PROMPT
-    # -----------------------------------------------------
-
-    if system_prompt:
-
-        messages.append(
-            {
-                "role": "system",
-                "content": system_prompt
-            }
-        )
-
-
-    # -----------------------------------------------------
-    # ADD USER PROMPT
-    # -----------------------------------------------------
-
-    messages.append(
-        {
-            "role": "user",
-            "content": prompt
-        }
-    )
-
-
-    # -----------------------------------------------------
-    # CALL MISTRAL
-    # -----------------------------------------------------
-
-    try:
-
-        response = client.chat.complete(
-
-            model=MISTRAL_MODEL,
-
-            messages=messages,
-
-            temperature=0.2
-        )
-
-
-        # -------------------------------------------------
-        # GET GENERATED TEXT
-        # -------------------------------------------------
-
-        answer = (
-            response.choices[0]
-            .message
-            .content
-        )
-
-
-        # -------------------------------------------------
-        # HANDLE EMPTY RESPONSE
-        # -------------------------------------------------
-
-        if answer is None:
-
-            return (
-                "Mistral returned an empty response."
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.complete(
+                model=MODEL,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_tokens=1000
             )
 
+            return response.choices[0].message.content
 
-        return str(answer).strip()
+        except Exception as e:
 
+            error_text = str(e).lower()
 
-    # -----------------------------------------------------
-    # HANDLE API ERROR
-    # -----------------------------------------------------
+            # Handle rate limiting
+            if (
+                "429" in error_text
+                or "rate limit" in error_text
+                or "rate_limited" in error_text
+            ):
 
-    except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 4 * (2 ** attempt)
+                    time.sleep(wait_time)
+                    continue
 
-        return (
-            f"Mistral API error: {str(e)}"
-        )
+            raise e
 
-
-# =========================================================
-# COMPATIBILITY FUNCTION
-# =========================================================
-
-def generate_response(
-    prompt,
-    system_prompt=None
-):
-    """
-    Compatibility wrapper.
-
-    Some parts of the project may use
-    generate_response() instead of ask_mistral().
-    """
-
-    return ask_mistral(
-        prompt=prompt,
-        system_prompt=system_prompt
-    )
-
-
-# =========================================================
-# SIMPLE TEST
-# =========================================================
-
-def test_mistral():
-    """
-    Tests the Mistral connection.
-    """
-
-    return ask_mistral(
-        prompt=(
-            "Explain sales analysis in "
-            "one simple sentence."
-        ),
-
-        system_prompt=(
-            "You are a helpful data analyst."
-        )
-    )
-
-
-# =========================================================
-# RUN DIRECT TEST
-# =========================================================
-
-if __name__ == "__main__":
-
-    print("=" * 60)
-
-    print("MISTRAL AI TEST")
-
-    print("=" * 60)
-
-    print(
-        f"Model: {MISTRAL_MODEL}"
-    )
-
-    print()
-
-    print(
-        test_mistral()
-    )
-
-    print()
-
-    print(
-        "MISTRAL TEST COMPLETED"
-    )
-
-    print("=" * 60)
+    return "Unable to generate response."
