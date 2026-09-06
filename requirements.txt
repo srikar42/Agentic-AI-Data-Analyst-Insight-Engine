@@ -4,8 +4,7 @@ langgraph
 langchain-core
 streamlit
 pandas
-numpy
 matplotlib
+openpyxl
 python-dotenv
 guardrails-ai
-guardrails-ai-valid-length
