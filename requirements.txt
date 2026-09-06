@@ -1,0 +1,11 @@
+mistralai==2.9.4
+mcp>=1.28,<2
+langgraph
+langchain-core
+streamlit
+pandas
+numpy
+matplotlib
+python-dotenv
+guardrails-ai
+guardrails-ai-valid-length
